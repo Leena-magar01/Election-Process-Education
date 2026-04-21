@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ─── Base Reset ───────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #111827; /* Dark gray */
+  color: #e5e7eb;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #4f46e5; }
+
+/* ─── Chat Bubbles ──────────────────────────────────── */
+.bubble-assistant {
+  @apply bg-chat-assistant text-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[78%]
+         border border-chat-border text-sm leading-relaxed;
+}
+.bubble-user {
+  @apply bg-chat-user text-white rounded-2xl rounded-tr-sm px-4 py-3 max-w-[78%]
+         text-sm leading-relaxed;
+}
+
+/* ─── Quick Reply Buttons ───────────────────────────── */
+.qr-btn {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-chat-border
+         bg-chat-surface text-slate-200 text-sm font-medium
+         hover:bg-chat-border hover:text-white
+         transition-all duration-200 cursor-pointer select-none;
+}
+
+/* ─── Timeline ──────────────────────────────────────── */
+.timeline-step {
+  @apply flex flex-col items-center gap-1;
+}
+.timeline-step .dot {
+  @apply w-10 h-10 rounded-full flex items-center justify-center
+         font-bold text-sm border-2 transition-all duration-300;
+}
+.timeline-step.active .dot {
+  @apply bg-primary-600 border-primary-600 text-white;
+}
+.timeline-step.done .dot {
+  @apply bg-accent-500 border-accent-500 text-white;
+}
+.timeline-step.pending .dot {
+  @apply bg-chat-surface border-chat-border text-slate-400;
+}
+.timeline-connector {
+  @apply flex-1 h-0.5 bg-chat-border relative;
+}
+.timeline-connector.done {
+  @apply bg-accent-500;
+}
+
+/* ─── Typing Indicator ──────────────────────────────── */
+.typing-dot {
+  @apply w-2 h-2 rounded-full bg-slate-400;
+  animation: pulseDot 1.4s infinite ease-in-out both;
+}
+.typing-dot:nth-child(1) { animation-delay: 0s; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes pulseDot {
+  0%, 80%, 100% { transform: scale(0.4); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1;   }
+}
+
+/* ─── Glow Card (Now just a regular card) ───────────── */
+.glow-card {
+  @apply rounded-2xl border border-chat-border bg-chat-surface;
+}
+
+/* ─── Input Area ────────────────────────────────────── */
+.chat-input {
+  @apply w-full bg-chat-bubble border border-chat-border rounded-2xl px-4 py-3
+         text-sm text-slate-100 placeholder-slate-500
+         focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40
+         transition-all duration-200 resize-none;
+}
+
+/* ─── Send Button ───────────────────────────────────── */
+.send-btn {
+  @apply flex-shrink-0 w-10 h-10 rounded-xl bg-primary-600
+         flex items-center justify-center
+         hover:bg-primary-500 active:scale-95
+         transition-all duration-150;
+}
