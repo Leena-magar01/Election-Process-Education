@@ -11,6 +11,14 @@ let currentQuizIndex = 0;
 let score = 0;
 let wrongAnswers: { question: string, explanation: string }[] = [];
 
+/**
+ * Generates a heuristic-based response when the AI model is unavailable or rate-limited.
+ * Includes interactive conversational logic and a robust quiz engine.
+ *
+ * @param {string} userMessage - The most recent message from the user.
+ * @param {Message[]} history - The conversation history context.
+ * @returns {string} - The formatted markdown response with quick replies.
+ */
 function generateResponse(userMessage: string, history: Message[]): string {
   const msg = userMessage.toLowerCase();
 
@@ -362,6 +370,13 @@ What would you like to explore?
 [C] 🧩 Test Your Knowledge`;
 }
 
+/**
+ * API Route Handler for POST requests to /api/chat.
+ * Proxies messages to xAI's Grok API if available, otherwise falls back to the heuristic engine.
+ *
+ * @param {NextRequest} request - The incoming HTTP request containing the chat history and metadata.
+ * @returns {Promise<NextResponse>} - The JSON response containing the assistant's reply.
+ */
 export async function POST(request: NextRequest) {
   try {
     const { messages, userLevel, country } = await request.json();
