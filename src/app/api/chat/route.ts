@@ -389,19 +389,19 @@ export async function POST(request: NextRequest) {
       content: m.content,
     }));
 
-    // Try Grok (xAI) if key exists
-    if (process.env.XAI_API_KEY) {
+    // Try Groq API if key exists
+    if (process.env.GROQ_API_KEY) {
       try {
         const { default: OpenAI } = await import("openai");
-        const grok = new OpenAI({
-          apiKey: process.env.XAI_API_KEY,
-          baseURL: "https://api.x.ai/v1",
+        const groq = new OpenAI({
+          apiKey: process.env.GROQ_API_KEY,
+          baseURL: "https://api.groq.com/openai/v1",
         });
 
         const systemMessage = `${SYSTEM_PROMPT}\n\nUser Level: ${userLevel || "not set"}\nCountry: ${country || "not set"}`;
 
-        const completion = await grok.chat.completions.create({
-          model: "grok-3-mini",
+        const completion = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: systemMessage },
             ...history,
@@ -412,7 +412,8 @@ export async function POST(request: NextRequest) {
 
         const reply = completion.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
         return NextResponse.json({ reply });
-      } catch {
+      } catch (error) {
+        console.error("Groq API Error:", error);
         // Fall through to built-in engine
       }
     }

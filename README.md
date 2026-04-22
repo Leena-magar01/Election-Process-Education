@@ -15,13 +15,14 @@ The Election Education Assistant allows users to interact with an intelligent ag
 - **Framework**: [Next.js 14](https://nextjs.org/) (App Router)
 - **Frontend**: React 18, Tailwind CSS, Framer Motion (for fluid animations)
 - **State Management**: Zustand
-- **AI Integration**: xAI Grok API (`grok-3-mini`) via OpenAI compatible endpoint
+- **Backend/Database**: Firebase (Firestore ready)
+- **AI Integration**: Groq API (`llama-3.3-70b-versatile`) via OpenAI compatible endpoint
 - **Deployment & DevOps**: Dockerized for Google Cloud Run (Standalone Next.js build)
 
 ## 🧠 AI Model Implementation
 
 The core logic uses an AI proxy handler in `src/app/api/chat/route.ts`. 
-- **Primary Engine:** xAI Grok API (`grok-3-mini`) fetches dynamic, context-aware responses based on system prompts and conversation history.
+- **Primary Engine:** Groq API (`llama-3.3-70b-versatile`) fetches dynamic, lightning-fast responses based on system prompts and conversation history.
 - **Fallback Heuristic Engine:** A robust fallback logic guarantees 100% uptime by utilizing sophisticated pattern matching, ensuring smooth user experience even if API rate limits are hit or the API key is unconfigured.
 - **Prompt Engineering:** System prompts are dynamically injected with the user's chosen "difficulty level" and "country focus" for highly relevant responses.
 
