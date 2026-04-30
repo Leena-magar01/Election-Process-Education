@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ChatMessage } from "@/store/chatStore";
@@ -9,7 +10,7 @@ interface Props {
   message: ChatMessage;
 }
 
-export default function MessageBubble({ message }: Props) {
+const MessageBubble = React.memo(function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
 
   return (
@@ -45,7 +46,9 @@ export default function MessageBubble({ message }: Props) {
       )}
     </motion.div>
   );
-}
+});
+
+export default MessageBubble;
 
 function renderContent(text: string) {
   // Simple markdown-like rendering

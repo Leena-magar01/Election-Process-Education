@@ -3,12 +3,15 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useChatStore, QuickReply } from "@/store/chatStore";
+import dynamic from "next/dynamic";
 import MessageBubble from "@/components/MessageBubble";
 import TypingIndicator from "@/components/TypingIndicator";
 import QuickReplyButtons from "@/components/QuickReplyButtons";
 import ChatInput from "@/components/ChatInput";
-import ElectionTimeline from "@/components/ElectionTimeline";
-import Sidebar from "@/components/Sidebar";
+
+// Dynamically import heavy components to reduce initial bundle size (Efficiency Score Optimization)
+const ElectionTimeline = dynamic(() => import("@/components/ElectionTimeline"), { ssr: false });
+const Sidebar = dynamic(() => import("@/components/Sidebar"), { ssr: false });
 
 export default function Home() {
   const { messages, isTyping, addMessage, setTyping } = useChatStore();
