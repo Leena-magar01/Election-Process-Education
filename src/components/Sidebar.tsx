@@ -49,8 +49,9 @@ export default function Sidebar({ isOpen, onClose, onTopicSelect }: Props) {
                 <button
                   onClick={onClose}
                   className="w-8 h-8 rounded-lg bg-chat-bubble flex items-center justify-center text-slate-400 hover:text-white hover:bg-chat-border transition-colors"
+                  aria-label="Close sidebar"
                 >
-                  ✕
+                  <span aria-hidden="true">✕</span>
                 </button>
               </div>
             </div>
@@ -60,23 +61,24 @@ export default function Sidebar({ isOpen, onClose, onTopicSelect }: Props) {
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
                 Quick Topics
               </p>
-              <div className="space-y-1.5">
+              <ul className="space-y-1.5 list-none p-0 m-0" role="list" aria-label="Election Topics">
                 {TOPIC_SUGGESTIONS.map((topic, idx) => (
-                  <motion.button
-                    key={topic.value}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.04 }}
-                    onClick={() => {
-                      onTopicSelect(topic.value);
-                      onClose();
-                    }}
-                    className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-300 hover:bg-primary-600/20 hover:text-primary-300 transition-all duration-150 flex items-center gap-2"
-                  >
-                    {topic.label}
-                  </motion.button>
+                  <li key={topic.value}>
+                    <motion.button
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      onClick={() => {
+                        onTopicSelect(topic.value);
+                        onClose();
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-300 hover:bg-primary-600/20 hover:text-primary-300 transition-all duration-150 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      {topic.label}
+                    </motion.button>
+                  </li>
                 ))}
-              </div>
+              </ul>
 
               {/* Election facts */}
               <div className="mt-6 p-4 rounded-xl bg-chat-bubble border border-chat-border">

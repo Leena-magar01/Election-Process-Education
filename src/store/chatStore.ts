@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { logEventToFirestore } from "../lib/firebase";
 
 export type MessageRole = "user" | "assistant";
 
@@ -62,13 +63,17 @@ export const useChatStore = create<ChatState>((set) => ({
   country: null,
   currentTopic: null,
 
-  addMessage: (msg) =>
+  addMessage: (msg) => {
+    // Log interaction to Firestore securely in the background
+    logEventToFirestore("chat_message_sent", { role: msg.role, length: msg.content.length });
+
     set((state) => ({
       messages: [
         ...state.messages,
         { ...msg, id: `msg-${++msgCounter}`, timestamp: new Date() },
       ],
-    })),
+    }));
+  },
 
   setTyping: (isTyping) => set({ isTyping }),
   setUserLevel: (userLevel) => set({ userLevel }),

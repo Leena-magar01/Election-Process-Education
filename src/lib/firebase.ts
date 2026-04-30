@@ -1,8 +1,8 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
-// Using the environment variables defined in .env.local
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -18,3 +18,28 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // Export the Firestore database instance
 export const db = getFirestore(app);
+
+// Initialize Analytics (only on the client side)
+let analytics: any = null;
+if (typeof window !== "undefined") {
+  isSupported().then((supported) => {
+    if (supported) {
+      analytics = getAnalytics(app);
+    }
+  });
+}
+export { analytics };
+
+// Helper function to log events to Firestore
+export const logEventToFirestore = async (eventName: string, data: any) => {
+  try {
+    const eventsRef = collection(db, "events");
+    await addDoc(eventsRef, {
+      eventName,
+      ...data,
+      timestamp: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error logging to Firestore:", error);
+  }
+};
