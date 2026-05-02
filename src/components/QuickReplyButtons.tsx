@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * QuickReplyButtons component — renders interactive suggestion buttons
+ * that users can click to quickly send predefined messages.
+ *
+ * Used after assistant messages to provide guided conversation flow.
+ *
+ * @param {Object} props
+ * @param {QuickReply[]} props.replies - Array of quick reply options
+ * @param {Function} props.onSelect - Callback when a reply is selected
+ * @param {boolean} [props.disabled] - Whether buttons are disabled (e.g., while typing)
+ * @returns {JSX.Element} A row of animated, accessible quick-reply buttons
+ */
+
 import { motion } from "framer-motion";
 import { QuickReply } from "@/store/chatStore";
 
@@ -16,6 +29,8 @@ export default function QuickReplyButtons({ replies, onSelect, disabled }: Props
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.15 }}
       className="flex flex-wrap gap-2 mb-3 ml-10"
+      role="group"
+      aria-label="Quick reply options"
     >
       {replies.map((reply, idx) => (
         <motion.button
@@ -27,7 +42,8 @@ export default function QuickReplyButtons({ replies, onSelect, disabled }: Props
           whileTap={{ scale: 0.96 }}
           onClick={() => !disabled && onSelect(reply.value)}
           disabled={disabled}
-          className="qr-btn disabled:opacity-40 disabled:cursor-not-allowed"
+          className="qr-btn disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary-500"
+          aria-label={`Select: ${reply.label}`}
         >
           {reply.label}
         </motion.button>

@@ -1,33 +1,57 @@
+/**
+ * @fileoverview API route handler for the Election Education chat endpoint.
+ *
+ * Processes user messages and returns educational responses about election processes.
+ * Uses a two-tier response strategy:
+ * 1. Primary: Groq AI (LLaMA 3.3 70B) for natural conversational responses
+ * 2. Fallback: Built-in heuristic engine for reliable offline operation
+ *
+ * Integrates with Google Cloud Logging for monitoring and analytics.
+ *
+ * @module api/chat/route
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { SYSTEM_PROMPT, QUIZ_QUESTIONS } from "@/lib/electionData";
+import { cloudLog, toBigQueryRecord } from "@/lib/googleCloud";
 
+/** Shape of a message in the chat history */
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
 }
 
-// Global variables to track user's current quiz question and wrong answers
+/** Request body schema for the POST endpoint */
+interface ChatRequestBody {
+  messages: Array<{ role: string; content: string }>;
+  userLevel?: string;
+  country?: string;
+}
+
+// Quiz state tracking (per-session on the server instance)
 let currentQuizIndex = 0;
 let score = 0;
-let wrongAnswers: { question: string, explanation: string }[] = [];
+let wrongAnswers: { question: string; explanation: string }[] = [];
 
 /**
- * Generates a heuristic-based response when the AI model is unavailable or rate-limited.
- * Includes interactive conversational logic and a robust quiz engine.
+ * Generates a heuristic-based response when the AI model is unavailable.
+ * Implements a comprehensive conversational engine covering all election topics,
+ * an interactive quiz system, and live vote simulation triggers.
  *
- * @param {string} userMessage - The most recent message from the user.
- * @param {Message[]} history - The conversation history context.
- * @returns {string} - The formatted markdown response with quick replies.
+ * @param {string} userMessage - The user's latest message
+ * @param {Message[]} history - Full conversation history for context
+ * @returns {string} Formatted markdown response with quick-reply options
  */
 function generateResponse(userMessage: string, history: Message[]): string {
   const msg = userMessage.toLowerCase();
 
-  // If we are in quiz mode
+  // Quiz initialization
   if (msg.includes("test your knowledge") || msg.includes("quiz me")) {
     currentQuizIndex = 0;
     score = 0;
     wrongAnswers = [];
     const q = QUIZ_QUESTIONS[0];
+    cloudLog("INFO", "Quiz started", { totalQuestions: QUIZ_QUESTIONS.length });
     return `🧩 **Welcome to the Election Knowledge Test!**
 
 Let's see what you've learned. Here's Question 1 of ${QUIZ_QUESTIONS.length}:
@@ -40,25 +64,27 @@ Let's see what you've learned. Here's Question 1 of ${QUIZ_QUESTIONS.length}:
   }
 
   // Handle quiz answers
-  if (history.some(m => m.content.includes("Question")) && (msg === "a" || msg === "b" || msg === "c" || msg.match(/^\[?[a-c]\]?/))) {
+  if (
+    history.some((m) => m.content.includes("Question")) &&
+    (msg === "a" || msg === "b" || msg === "c" || msg.match(/^\[?[a-c]\]?/))
+  ) {
     const q = QUIZ_QUESTIONS[currentQuizIndex];
     if (!q) return "The quiz is over! [A] Restart Quiz [B] Back to timeline";
 
-    // Extract selected answer letter
     const selected = msg.match(/[a-c]/)?.[0].toUpperCase() || "";
     const isCorrect = selected === q.correct;
-    
+
     if (isCorrect) {
       score++;
     } else {
       wrongAnswers.push({
         question: q.question,
-        explanation: `The correct answer was **${q.correct}**: ${q.explanation}`
+        explanation: `The correct answer was **${q.correct}**: ${q.explanation}`,
       });
     }
 
-    let reply = isCorrect 
-      ? `✅ **Correct!**\n\n${q.explanation}\n\n` 
+    let reply = isCorrect
+      ? `✅ **Correct!**\n\n${q.explanation}\n\n`
       : `❌ **Not quite!** The correct answer was **${q.correct}**.\n\n${q.explanation}\n\n`;
 
     currentQuizIndex++;
@@ -70,7 +96,7 @@ Let's see what you've learned. Here's Question 1 of ${QUIZ_QUESTIONS.length}:
       return reply;
     } else {
       reply += `🏆 **Quiz Complete!**\n\nYou scored **${score} out of ${QUIZ_QUESTIONS.length}**.\n\n`;
-      
+
       if (wrongAnswers.length > 0) {
         reply += `**📚 Let's review what you missed:**\n`;
         wrongAnswers.forEach((wa, idx) => {
@@ -79,6 +105,8 @@ Let's see what you've learned. Here's Question 1 of ${QUIZ_QUESTIONS.length}:
       } else {
         reply += `**Perfect score! You're an election expert! 🌟**\n`;
       }
+
+      cloudLog("INFO", "Quiz completed", toBigQueryRecord("quiz_completed", { score, total: QUIZ_QUESTIONS.length }));
 
       reply += `\nWhat would you like to do next?\n\n[A] 🔄 Start over\n[B] 📖 View the timeline\n[C] 📊 Simulate Live Results`;
       currentQuizIndex = 0;
@@ -101,7 +129,7 @@ When counting finishes, the results become official.
 [C] 🧩 Test Your Knowledge`;
   }
 
-  // Level selection with informative intro
+  // Level selection
   if (msg.includes("beginner") || msg.includes("explain everything")) {
     return `Great choice! 🌱 I'll keep things simple and easy to follow.
 
@@ -371,25 +399,54 @@ What would you like to explore?
 }
 
 /**
- * API Route Handler for POST requests to /api/chat.
- * Proxies messages to xAI's Grok API if available, otherwise falls back to the heuristic engine.
+ * POST handler for /api/chat endpoint.
  *
- * @param {NextRequest} request - The incoming HTTP request containing the chat history and metadata.
- * @returns {Promise<NextResponse>} - The JSON response containing the assistant's reply.
+ * Accepts a JSON body with chat messages and returns an educational response
+ * about election processes. Uses Groq AI when available, falls back to a
+ * comprehensive built-in heuristic engine.
+ *
+ * Integrates with Google Cloud Logging for request monitoring and
+ * Firebase Analytics via the client-side store.
+ *
+ * @param {NextRequest} request - The incoming HTTP request
+ * @returns {Promise<NextResponse>} JSON response with the assistant's reply
+ *
+ * @example
+ * ```json
+ * // Request body
+ * { "messages": [{ "role": "user", "content": "How do elections work?" }] }
+ *
+ * // Response
+ * { "reply": "📋 **Voter Registration**\n\n..." }
+ * ```
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const startTime = Date.now();
+
   try {
-    const { messages, userLevel, country } = await request.json();
+    const body: ChatRequestBody = await request.json();
+    const { messages, userLevel, country } = body;
+
+    // Input validation
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      cloudLog("WARNING", "Invalid request: empty messages array");
+      return NextResponse.json(
+        { error: "Messages array is required" },
+        { status: 400 }
+      );
+    }
 
     const lastUserMessage = messages[messages.length - 1]?.content || "";
 
-    // Build history context
-    const history: Message[] = messages.map((m: { role: string; content: string }) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    // Build typed history context
+    const history: Message[] = messages.map(
+      (m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })
+    );
 
-    // Try Groq API if key exists
+    // Try Groq AI if key exists
     if (process.env.GROQ_API_KEY) {
       try {
         const { default: OpenAI } = await import("openai");
@@ -402,26 +459,41 @@ export async function POST(request: NextRequest) {
 
         const completion = await groq.chat.completions.create({
           model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemMessage },
-            ...history,
-          ],
+          messages: [{ role: "system", content: systemMessage }, ...history],
           max_tokens: 600,
           temperature: 0.7,
         });
 
-        const reply = completion.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
+        const reply =
+          completion.choices[0]?.message?.content ||
+          "I'm sorry, I couldn't generate a response.";
+
+        cloudLog("INFO", "AI response generated", {
+          model: "llama-3.3-70b-versatile",
+          latencyMs: Date.now() - startTime,
+          messageCount: messages.length,
+        });
+
         return NextResponse.json({ reply });
-      } catch (error) {
-        console.error("Groq API Error:", error);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown AI error";
+        cloudLog("WARNING", `Groq API fallback triggered: ${errorMessage}`);
         // Fall through to built-in engine
       }
     }
 
-    // Built-in response engine
+    // Built-in response engine (offline-capable)
     const reply = generateResponse(lastUserMessage, history);
+
+    cloudLog("INFO", "Heuristic response generated", {
+      latencyMs: Date.now() - startTime,
+      engine: "built-in",
+    });
+
     return NextResponse.json({ reply });
-  } catch {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    cloudLog("ERROR", `Chat API error: ${errorMessage}`);
     return NextResponse.json(
       { error: "Failed to process message" },
       { status: 500 }

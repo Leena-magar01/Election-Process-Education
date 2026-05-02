@@ -7,11 +7,11 @@ export default function LiveVoteSimulation() {
   const [votes, setVotes] = useState([0, 0, 0]);
   const [isCounting, setIsCounting] = useState(true);
 
-  // Target final percentages
-  const targets = [45, 35, 20]; // Party A wins, Party B second, Party C third
-  const totalDuration = 4000; // 4 seconds of counting
-
   useEffect(() => {
+    // Target final percentages
+    const targets = [45, 35, 20]; // Party A wins, Party B second, Party C third
+    const totalDuration = 4000; // 4 seconds of counting
+
     let startTime: number;
     let animationFrame: number;
 
