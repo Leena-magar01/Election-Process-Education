@@ -1,9 +1,16 @@
 /**
- * @fileoverview Firebase configuration and service initialization module.
+ * @fileoverview Firebase configuration and Google Cloud service initialization.
  *
  * Provides centralized Firebase app initialization, Firestore database access,
- * Google Analytics integration, Firebase Performance Monitoring, and a
- * structured event logging utility for the Election Education Assistant.
+ * Google Analytics integration, Firebase Performance Monitoring, and structured
+ * event logging for the Election Education Assistant deployed on Cloud Run.
+ *
+ * Google Services Used:
+ * - Firebase / Firestore (real-time database)
+ * - Firebase Analytics (user engagement tracking)
+ * - Firebase Performance Monitoring (app performance)
+ * - Google Cloud Logging (via googleCloud.ts)
+ * - Vertex AI configuration (via googleCloud.ts)
  *
  * @module lib/firebase
  */
@@ -17,11 +24,11 @@ import {
   type Firestore,
 } from "firebase/firestore";
 import { getAnalytics, logEvent, isSupported, type Analytics } from "firebase/analytics";
+import { getPerformance } from "firebase/performance";
 
 /**
- * Firebase configuration object populated from environment variables.
- * All values are sourced from NEXT_PUBLIC_ prefixed environment variables
- * to ensure they are available on the client side.
+ * Firebase configuration populated from NEXT_PUBLIC_ environment variables.
+ * All values are client-safe and required for connecting to the Firebase project.
  */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -40,49 +47,57 @@ const firebaseConfig = {
 const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 /**
- * Firestore database instance for the Election Education Assistant.
- * Used for persisting chat events and user interaction analytics.
+ * Firestore database instance.
+ * Used for persisting chat events, quiz scores, and user analytics.
  */
 export const db: Firestore = getFirestore(app);
 
-/**
- * Firebase Analytics instance, initialized only on the client side.
- * Returns null during server-side rendering.
- */
+/** Firebase Analytics instance — initialized client-side only */
 let analyticsInstance: Analytics | null = null;
 
 /**
- * Initializes Firebase Analytics if running in a browser environment
- * and the browser supports it (not blocked by ad blockers, etc.).
+ * Initializes Firebase Analytics and Performance Monitoring.
+ * Only runs in the browser environment to avoid SSR issues.
+ * Checks browser support before initializing (handles ad-blockers gracefully).
  */
-async function initAnalytics(): Promise<void> {
-  if (typeof window !== "undefined") {
-    const supported = await isSupported();
-    if (supported) {
-      analyticsInstance = getAnalytics(app);
+async function initClientServices(): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  const supported = await isSupported();
+  if (supported) {
+    analyticsInstance = getAnalytics(app);
+
+    // Firebase Performance Monitoring — tracks page load, API latency, etc.
+    try {
+      getPerformance(app);
+    } catch {
+      // Performance monitoring is optional — fail silently
     }
   }
 }
 
-// Trigger analytics initialization on module load (client-side only)
-initAnalytics();
+// Trigger initialization on module load (client-side only)
+initClientServices();
 
 export { analyticsInstance as analytics };
 
 /**
  * Logs a custom event to both Firebase Analytics and Firestore.
  *
- * This dual-logging approach ensures events are tracked in Google Analytics
- * for real-time dashboards AND persisted in Firestore for custom queries
- * and BigQuery export.
+ * Dual-logging ensures:
+ * - Firebase Analytics: Real-time dashboards in Firebase Console
+ * - Firestore: Persistent storage queryable via BigQuery export
  *
- * @param {string} eventName - The name of the event to log (e.g., "chat_message_sent")
- * @param {Record<string, unknown>} data - Key-value pairs of event metadata
+ * Both integrate with Google Cloud's analytics ecosystem for comprehensive
+ * usage tracking across the election education platform.
+ *
+ * @param {string} eventName - Event name (e.g., "quiz_completed", "topic_viewed")
+ * @param {Record<string, unknown>} data - Structured event metadata
  * @returns {Promise<void>}
  *
  * @example
  * ```ts
- * await logEventToFirestore("quiz_completed", { score: 8, total: 8 });
+ * await logEventToFirestore("quiz_completed", { score: 8, total: 8, country: "India" });
  * ```
  */
 export const logEventToFirestore = async (
@@ -90,22 +105,23 @@ export const logEventToFirestore = async (
   data: Record<string, unknown>
 ): Promise<void> => {
   try {
-    // Log to Firebase Analytics (Google Services integration)
+    // Google Analytics event tracking
     if (analyticsInstance) {
-      logEvent(analyticsInstance, eventName, data);
+      logEvent(analyticsInstance, eventName, data as Record<string, string | number | boolean>);
     }
 
-    // Persist to Firestore for BigQuery export and custom analytics
+    // Firestore persistence for BigQuery export
     const eventsRef = collection(db, "analytics_events");
     await addDoc(eventsRef, {
       eventName,
       ...data,
       timestamp: serverTimestamp(),
       source: "election-education-assistant",
+      platform: "web",
       version: "1.0.0",
     });
   } catch (error: unknown) {
-    // Fail silently — analytics should never break the user experience
+    // Analytics must never break user experience
     if (error instanceof Error) {
       console.error(`[Firebase] Event logging failed: ${error.message}`);
     }
@@ -114,15 +130,39 @@ export const logEventToFirestore = async (
 
 /**
  * Logs a page view event to Firebase Analytics.
- * Called automatically when the user navigates to a new topic.
+ * Called when the user navigates to a new election topic section.
  *
- * @param {string} pageName - The name of the page or topic being viewed
+ * @param {string} pageName - The topic or page being viewed
+ *
+ * @example
+ * ```ts
+ * logPageView("Voter Registration");
+ * ```
  */
 export const logPageView = (pageName: string): void => {
   if (analyticsInstance) {
     logEvent(analyticsInstance, "page_view", {
       page_title: pageName,
       page_location: typeof window !== "undefined" ? window.location.href : "",
+      content_type: "election_education",
+    });
+  }
+};
+
+/**
+ * Logs a quiz completion event with score data to Firebase Analytics.
+ * Used to track learning outcomes across the election education platform.
+ *
+ * @param {number} score - Number of correct answers
+ * @param {number} total - Total number of questions
+ */
+export const logQuizCompletion = (score: number, total: number): void => {
+  if (analyticsInstance) {
+    logEvent(analyticsInstance, "quiz_completion", {
+      score,
+      total,
+      percentage: Math.round((score / total) * 100),
+      content_type: "election_quiz",
     });
   }
 };
